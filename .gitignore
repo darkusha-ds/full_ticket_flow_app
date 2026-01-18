@@ -21,3 +21,4 @@ out/
 .cache/
 *.tsbuildinfo
 admin-web__OLD.zip
+admin-web__OLD/*
