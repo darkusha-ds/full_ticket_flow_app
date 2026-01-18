@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ticketflow
+      POSTGRES_PASSWORD: ticketflow
+      POSTGRES_DB: ticketflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.api
+    volumes:
+      - ./apps/api:/app
+      - api_node_modules:/app/node_modules
+    working_dir: /app
+    command: sh -c "npm exec -- prisma generate && npm run dev"
+    environment:
+      DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/ticketflow
+      REDIS_URL: redis://redis:6379
+      PORT: "8000"
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8000:8000"
+
+  admin-web:
+    build:
+      context: ./apps/admin-web
+      dockerfile: Dockerfile.admin-web
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+
+  nginx:
+    image: nginx:1.27
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - admin-web
+      - api
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata:
+  api_node_modules:

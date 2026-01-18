@@ -1,0 +1,12 @@
+# apps/api/Dockerfile
+FROM node:20-bullseye-slim
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --include=dev
+
+COPY . .
+
+ENV CHOKIDAR_USEPOLLING=true
+EXPOSE 8000
+CMD ["npm","run","dev"]

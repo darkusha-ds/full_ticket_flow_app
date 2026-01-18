@@ -1,0 +1,96 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ticketflow
+      POSTGRES_PASSWORD: ticketflow
+      POSTGRES_DB: ticketflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketflow -d ticketflow"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.dev.api
+    working_dir: /app
+    volumes:
+      - ./apps/api:/app
+      - api_node_modules:/app/node_modules
+    environment:
+      DATABASE_URL: postgres://ticketflow:ticketflow@postgres:5432/ticketflow
+      REDIS_URL: redis://redis:6379
+      HOST: 0.0.0.0
+      PORT: 8000
+      CHOKIDAR_USEPOLLING: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const net=require('net');const s=net.connect(8000,'127.0.0.1');s.on('connect',()=>process.exit(0));s.on('error',()=>process.exit(1));\"" ]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    command: >
+      sh -c "
+      npm exec -- prisma generate &&
+      (npm exec -- prisma migrate deploy || npm exec -- prisma db push) &&
+      npm exec -- prisma db seed &&
+      npm run dev
+      "
+
+  admin-web:
+    build:
+      context: ./apps/admin-web
+      dockerfile: Dockerfile.dev.admin-web
+    volumes:
+      - ./apps/admin-web:/app
+      - admin_web_node_modules:/app/node_modules
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+      - PUBLIC_URL=/vision-ui-dashboard-react
+      - WDS_SOCKET_PATH=/vision-ui-dashboard-react/ws
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 20s
+    ports:
+      - "3000:3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./infra/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      admin-web:
+        condition: service_healthy
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata:
+  api_node_modules:
+  admin_web_node_modules:

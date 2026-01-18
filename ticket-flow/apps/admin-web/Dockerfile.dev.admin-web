@@ -1,0 +1,37 @@
+FROM node:20-bullseye-slim
+
+WORKDIR /app
+
+# Нужны утилиты для healthcheck и более предсказуемой работы на mac/arm
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json* ./
+
+# Проверяем, что node/npm реально доступны (бывает полезно при странных кешах/платформах)
+RUN node -v && npm -v
+
+RUN if [ -f package-lock.json ]; then \
+      npm ci --legacy-peer-deps; \
+    else \
+      npm install --legacy-peer-deps; \
+    fi
+
+COPY . .
+
+EXPOSE 3000
+
+# CRA внутри контейнера должен слушать 0.0.0.0
+ENV HOST=0.0.0.0
+ENV PORT=3000
+ENV CHOKIDAR_USEPOLLING=true
+ENV WATCHPACK_POLLING=true
+ENV PUBLIC_URL=/vision-ui-dashboard-react
+ENV WDS_SOCKET_PATH=/ws
+
+# Нужен, если в docker-compose.dev.yml где-то стоит depends_on: condition: service_healthy
+HEALTHCHECK --interval=5s --timeout=3s --start-period=15s --retries=20 \
+  CMD curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1
+
+CMD ["npm", "start"]
