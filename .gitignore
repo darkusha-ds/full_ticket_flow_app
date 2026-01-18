@@ -20,3 +20,4 @@ yarn-error.log*
 out/
 .cache/
 *.tsbuildinfo
+admin-web__OLD.zip
