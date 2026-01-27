@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 
 // react-router components
 import { Route, Switch, Redirect, useLocation } from "react-router-dom";
+import ProtectedRoute from "components/ProtectedRoute";
+import { isAuthenticated } from "utils/auth";
 
 // @mui material components
 import { ThemeProvider } from "@mui/material/styles";
@@ -36,6 +38,16 @@ export default function App() {
   const [onMouseEnter, setOnMouseEnter] = useState(false);
   const [rtlCache, setRtlCache] = useState(null);
   const { pathname } = useLocation();
+
+  const safeIsAuthed = () => {
+    try {
+      return isAuthenticated();
+    } catch {
+      return false;
+    }
+  };
+
+  const [authed, setAuthedState] = useState(() => safeIsAuthed());
 
   // Cache for the rtl
   useMemo(() => {
@@ -77,17 +89,62 @@ export default function App() {
     document.scrollingElement.scrollTop = 0;
   }, [pathname]);
 
+  // Re-check auth on route changes (avoid crashing render if storage is blocked)
+  useEffect(() => {
+    setAuthedState(safeIsAuthed());
+  }, [pathname]);
+
+  // Also react to storage updates from other tabs
+  useEffect(() => {
+    const onStorage = () => setAuthedState(safeIsAuthed());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   const getRoutes = (allRoutes) =>
     allRoutes.map((route) => {
       if (route.collapse) {
         return getRoutes(route.collapse);
       }
 
-      if (route.route) {
-        return <Route exact path={route.route} component={route.component} key={route.key} />;
+      if (!route.route) return null;
+
+      // If user is NOT authenticated:
+      // - block protected routes
+      // If user IS authenticated:
+      // - optionally redirect away from public auth pages (sign-in / sign-up)
+      if (route.protected) {
+        return (
+          <ProtectedRoute
+            exact
+            path={route.route}
+            authed={authed}
+            component={route.component}
+            key={route.key}
+          />
+        );
       }
 
-      return null;
+      if (route.public) {
+        const PublicComponent = route.component;
+
+        return (
+          <Route
+            exact
+            path={route.route}
+            key={route.key}
+            render={(props) => {
+              if (authed) {
+                return <Redirect to="/dashboard" />;
+              }
+              return <PublicComponent {...props} />;
+            }}
+          />
+        );
+      }
+
+      const Component = route.component;
+      return <Route exact path={route.route} key={route.key} render={(props) => <Component {...props} />} />;
     });
 
   const configsButton = (
@@ -118,13 +175,13 @@ export default function App() {
     <CacheProvider value={rtlCache}>
       <ThemeProvider theme={themeRTL}>
         <CssBaseline />
-        {layout === "dashboard" && (
+        {layout === "dashboard" && authed && (
           <>
             <Sidenav
               color={sidenavColor}
               brand=""
               brandName="VISION UI FREE"
-              routes={routes}
+              routes={authed ? routes.filter((r) => !r.public) : routes.filter((r) => !r.protected)}
               onMouseEnter={handleOnMouseEnter}
               onMouseLeave={handleOnMouseLeave}
             />
@@ -135,20 +192,20 @@ export default function App() {
         {layout === "vr" && <Configurator />}
         <Switch>
           {getRoutes(routes)}
-          <Redirect from="*" to="/dashboard" />
+          <Redirect from="*" to={authed ? "/dashboard" : "/authentication/sign-in"} />
         </Switch>
       </ThemeProvider>
     </CacheProvider>
   ) : (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      {layout === "dashboard" && (
+      {layout === "dashboard" && authed && (
         <>
           <Sidenav
             color={sidenavColor}
             brand=""
             brandName="VISION UI FREE"
-            routes={routes}
+            routes={authed ? routes.filter((r) => !r.public) : routes.filter((r) => !r.protected)}
             onMouseEnter={handleOnMouseEnter}
             onMouseLeave={handleOnMouseLeave}
           />
@@ -159,7 +216,7 @@ export default function App() {
       {layout === "vr" && <Configurator />}
       <Switch>
         {getRoutes(routes)}
-        <Redirect from="*" to="/dashboard" />
+        <Redirect from="*" to={authed ? "/dashboard" : "/authentication/sign-in"} />
       </Switch>
     </ThemeProvider>
   );

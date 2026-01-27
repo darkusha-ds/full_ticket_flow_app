@@ -45,6 +45,7 @@ const routes = [
     route: "/dashboard",
     icon: <IoHome size="15px" color="inherit" />,
     component: Dashboard,
+    protected: true,
     noCollapse: true,
   },
   {
@@ -54,6 +55,7 @@ const routes = [
     route: "/tables",
     icon: <IoStatsChart size="15px" color="inherit" />,
     component: Tables,
+    protected: true,
     noCollapse: true,
   },
   {
@@ -63,6 +65,7 @@ const routes = [
     route: "/billing",
     icon: <BsCreditCardFill size="15px" color="inherit" />,
     component: Billing,
+    protected: true,
     noCollapse: true,
   },
   { type: "title", title: "Account Pages", key: "account-pages" },
@@ -73,6 +76,7 @@ const routes = [
     route: "/profile",
     icon: <BsFillPersonFill size="15px" color="inherit" />,
     component: Profile,
+    protected: true,
     noCollapse: true,
   },
   {
@@ -82,6 +86,7 @@ const routes = [
     route: "/authentication/sign-in",
     icon: <IoIosDocument size="15px" color="inherit" />,
     component: SignIn,
+    public: true,
     noCollapse: true,
   },
   {
@@ -91,6 +96,7 @@ const routes = [
     route: "/authentication/sign-up",
     icon: <IoRocketSharp size="15px" color="inherit" />,
     component: SignUp,
+    public: true,
     noCollapse: true,
   },
 ];
